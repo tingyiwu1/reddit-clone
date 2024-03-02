@@ -13,9 +13,53 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id       String   @id @default(uuid())
-  email    String   @unique
-  name     String?
-  password String
+model Subreddit {
+  id    String @id @default(uuid())
+  posts Post[]
+}
+
+model Post {
+  author      String
+  // author_fullname String
+  created_utc DateTime
+  id          String   @id @default(uuid())
+  // name         String // t3_{id}
+  over_18     Boolean
+  permalink   String
+  score       Int
+  selftext    String
+  thumbnail   String
+  title       String
+  url         String
+
+  subreddit    Subreddit @relation(fields: [subreddit_id], references: [id])
+  subreddit_id String
+
+  comments Comment[]
+}
+
+model Comment {
+  author          String
+  // author_fullname String
+  body            String
+  created_utc     DateTime
+  edited          Boolean
+  gilded          Int
+  id              String   @id @default(uuid())
+  is_submitter    Boolean // if the author is the same as the post author
+  locked          Boolean
+  // name            String // t1_{id}
+  permalink       String
+  score           Int
+  // subreddit       String
+  // subreddit_id    String
+
+  // link_id         String // t3_{post_id}
+  post    Post   @relation(fields: [post_id], references: [id])
+  post_id String
+
+  // parent_id       String // t3_{post_id} or t1_{comment_id}
+  parent_id String?
+  parent    Comment?  @relation("Replies", fields: [parent_id], references: [id])
+  children  Comment[] @relation("Replies")
 }
