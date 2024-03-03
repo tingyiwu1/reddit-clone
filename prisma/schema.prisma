@@ -13,11 +13,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Subreddit {
-  id    String @id @default(uuid())
-  posts Post[]
-}
-
 model Post {
   author      String
   // author_fullname String
@@ -31,26 +26,28 @@ model Post {
   thumbnail   String
   title       String
   url         String
-
-  subreddit    Subreddit @relation(fields: [subreddit_id], references: [id])
-  subreddit_id String
+  subreddit   String
 
   comments Comment[]
+
+  @@index([subreddit])
+  @@index([subreddit, created_utc])
+  @@index([subreddit, score])
 }
 
 model Comment {
-  author          String
+  author       String
   // author_fullname String
-  body            String
-  created_utc     DateTime
-  edited          Boolean
-  gilded          Int
-  id              String   @id @default(uuid())
-  is_submitter    Boolean // if the author is the same as the post author
-  locked          Boolean
+  body         String
+  created_utc  DateTime
+  edited       Boolean
+  gilded       Int
+  id           String   @id @default(uuid())
+  is_submitter Boolean // if the author is the same as the post author
+  locked       Boolean
   // name            String // t1_{id}
-  permalink       String
-  score           Int
+  permalink    String
+  score        Int
   // subreddit       String
   // subreddit_id    String
 
@@ -59,7 +56,13 @@ model Comment {
   post_id String
 
   // parent_id       String // t3_{post_id} or t1_{comment_id}
+  is_root   Boolean   @default(false)
   parent_id String?
   parent    Comment?  @relation("Replies", fields: [parent_id], references: [id])
   children  Comment[] @relation("Replies")
+
+  @@index([post_id])
+  @@index([post_id, created_utc])
+  @@index([post_id, score])
+  @@index([post_id, parent_id])
 }

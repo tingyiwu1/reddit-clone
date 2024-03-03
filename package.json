@@ -10,6 +10,9 @@
     "start": "remix-serve ./build/index.js",
     "typecheck": "tsc"
   },
+  "prisma": {
+    "seed": "ts-node-esm ./populate.ts"
+  },
   "dependencies": {
     "@prisma/client": "^5.10.2",
     "@remix-run/css-bundle": "^2.4.1",
