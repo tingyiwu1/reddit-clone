@@ -13,7 +13,10 @@ services:
   app:
     build:
       dockerfile: Dockerfile
+      target: dev
     environment:
       - DATABASE_URL=$DOCKER_DB_URL
     ports:
       - 3000:3000
+    volumes:
+      - ./app:/app/app
