@@ -22,15 +22,22 @@ async function seedPosts(index: number) {
 
   console.log(`Seeding ${file_name}`);
   await prisma.post.createMany({
-    data: posts.map((post) => {
-      const { author_fullname: _, name: __, subreddit_id: ___, ...rest } = post;
-      return {
-        ...rest,
-        created_utc: new Date(post.created_utc),
-        score: parseInt(post.score),
-        selftext: post.selftext.replaceAll('\u0000', ''),
-      };
-    }),
+    data: posts
+      // .filter((post) => post.subreddit === 'funny')
+      .map((post) => {
+        const {
+          author_fullname: _,
+          name: __,
+          subreddit_id: ___,
+          ...rest
+        } = post;
+        return {
+          ...rest,
+          created_utc: new Date(post.created_utc),
+          score: parseInt(post.score),
+          selftext: post.selftext.replaceAll('\u0000', ''),
+        };
+      }),
     skipDuplicates: true,
   });
 }
@@ -60,28 +67,30 @@ async function seedComments(index: number) {
 
   console.log(`Seeding ${file_name}`);
   await prisma.comment.createMany({
-    data: comments.map((comment) => {
-      const {
-        author_fullname: _,
-        name: __,
-        subreddit: ___,
-        subreddit_id: ____,
-        link_id: _____,
-        ...rest
-      } = comment;
-      if (comment.parent_id.startsWith('t1_')) {
-        parents.push([comment.id, comment.parent_id.slice(3)]);
-      }
-      return {
-        ...rest,
-        created_utc: new Date(comment.created_utc),
-        score: parseInt(comment.score),
-        gilded: parseInt(comment.gilded),
-        post_id: comment.link_id.slice(3),
-        parent_id: null,
-        is_root: comment.parent_id.startsWith('t3_'),
-      };
-    }),
+    data: comments
+      // .filter((comment) => comment.link_id === 't3_1037wz4')
+      .map((comment) => {
+        const {
+          author_fullname: _,
+          name: __,
+          subreddit: ___,
+          subreddit_id: ____,
+          link_id: _____,
+          ...rest
+        } = comment;
+        if (comment.parent_id.startsWith('t1_')) {
+          parents.push([comment.id, comment.parent_id.slice(3)]);
+        }
+        return {
+          ...rest,
+          created_utc: new Date(comment.created_utc),
+          score: parseInt(comment.score),
+          gilded: parseInt(comment.gilded),
+          post_id: comment.link_id.slice(3),
+          parent_id: null,
+          is_root: comment.parent_id.startsWith('t3_'),
+        };
+      }),
     skipDuplicates: true,
   });
   fs.writeFileSync(
@@ -142,18 +151,18 @@ async function main() {
     await seedPosts(i);
   }
 
-  for (let i = 1; i < 136; i++) {
+  for (let i = 0; i < 136; i++) {
     await seedComments(i);
   }
 
-  for (let i = 1; i < 136; i++) {
+  for (let i = 0; i < 136; i++) {
     await seedParents(i);
   }
 
   console.log(`Seeding finished.`);
 }
 
-type IPost = {
+export type IPost = {
   author: string;
   author_fullname: string;
   created_utc: string;
@@ -170,7 +179,7 @@ type IPost = {
   url: string;
 };
 
-type IComment = {
+export type IComment = {
   author: string;
   author_fullname: string;
   body: string;
