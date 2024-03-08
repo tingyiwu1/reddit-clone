@@ -72,7 +72,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return redirect(`/post/${post.id}`);
 };
 
-const scoreString = (score: number) => {
+export const scoreString = (score: number) => {
   if (score > 10000) {
     return (score / 1000).toFixed(1) + 'k';
   }
@@ -165,7 +165,7 @@ export default function Subreddit() {
       <div className="mx-4 mt-2">
         {data.map((post, index) => (
           <div
-            className="mb-3 flex border-2 border-gray-200 bg-gray-100"
+            className="mb-3 flex border border-gray-200 bg-gray-100"
             key={post.id}
           >
             <div className="w-10 flex-col bg-white pt-2">
@@ -187,13 +187,15 @@ export default function Subreddit() {
               <div>
                 <Link to={post.url || `/post/${post.id}`}>{post.title}</Link>
               </div>
-              <div>
+              <div className="text-sm text-gray-400">
                 submitted {DateTime.fromISO(post.created_utc).toRelative()} by{' '}
-                {post.author}
+                <span className="font-bold text-sky-900">{post.author}</span>
               </div>
-              <Link to={`/post/${post.id}`}>
+              <Link className="hover:underline" to={`/post/${post.id}`}>
                 <div>
-                  <div>{post._count.comments} comments</div>
+                  <div className="text-sm font-bold text-gray-500">
+                    {post._count.comments} comments
+                  </div>
                 </div>
               </Link>
             </div>

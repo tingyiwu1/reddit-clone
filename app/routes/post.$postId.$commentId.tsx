@@ -96,6 +96,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     },
   });
 
+  if (parsed.data.is_root) {
+    return json({ comment: newComment, replies: [] });
+  }
+
   const url = new URL(request.url);
 
   const orderBy: Prisma.CommentFindManyArgs['orderBy'] =
