@@ -7,7 +7,9 @@ import {
 import { Form, Link, useLoaderData, useParams } from '@remix-run/react';
 import { prisma } from '~/db.server';
 import { Prisma } from '@prisma/client';
+import { DateTime } from 'luxon';
 import { z } from 'zod';
+import { useState } from 'react';
 
 export const loader = async ({ params }: LoaderFunctionArgs) => {
   if (!params.subreddit) {
@@ -70,36 +72,132 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return redirect(`/post/${post.id}`);
 };
 
+const scoreString = (score: number) => {
+  if (score > 10000) {
+    return (score / 1000).toFixed(1) + 'k';
+  }
+  return score.toString();
+};
+
 export default function Subreddit() {
   const params = useParams();
   const data = useLoaderData<typeof loader>();
 
+  const [showNewPostForm, setShowNewPostForm] = useState(false);
+
   return (
     <div>
-      <div className="flex bg-blue-300 pb-5 pt-5">
-        <div className=" p-2 text-5xl">r/{params.subreddit}</div>
+      <div className="flex bg-sky-50 pb-1 pt-5">
+        <div className=" p-2 text-3xl">r/{params.subreddit}</div>
       </div>
-
-      <Link to={`/r/${params.subreddit}`}>Hot</Link>
-      <Link to={`/r/${params.subreddit}/new`}>New</Link>
-      <Form method="post">
-        title: <input type="text" name="title" required />
-        url: <input type="text" name="url" />
-        selftext: <input type="text" name="selftext" />
-        author: <input type="text" name="author" required />
-        thumbnail: <input type="text" name="thumbnail" />
-        over_18: <input type="checkbox" name="over_18" />
-        <input type="hidden" name="subreddit" value={params.subreddit} />
-        <button type="submit">Submit</button>
-      </Form>
-      <div>
-        {data.map((post) => (
-          <Link to={`/post/${post.id}`} key={post.id}>
-            <div>
-              {post.title}
-              <div>{post._count.comments} comments</div>
-            </div>
+      <div className="flex gap-2 bg-gray-500 p-2">
+        <div
+          className={`px-2 py-1 ${params.sort == 'new' ? '' : 'bg-sky-500'}`}
+        >
+          <Link to={`/r/${params.subreddit}`}>
+            <div className="text-white">Hot</div>
           </Link>
+        </div>
+        <div
+          className={`px-2 py-1 ${params.sort == 'new' ? 'bg-sky-500' : ''}`}
+        >
+          <Link to={`/r/${params.subreddit}/new`}>
+            <div className="text-white">New</div>
+          </Link>
+        </div>
+        <button
+          className="bg-sky-500 px-2 py-1 text-white"
+          onClick={() => setShowNewPostForm(true)}
+        >
+          New Post
+        </button>
+      </div>
+      {showNewPostForm && (
+        <Form method="post">
+          <div className="mx-4 mt-2 w-80 bg-gray-200 p-3">
+            <div className="mb-3 text-center text-lg">New Post</div>
+            <div className="mx-3 mb-2 flex items-center justify-between">
+              <div>Title</div>
+              <input type="text" name="title" required />
+            </div>
+            <div className="mx-3 mb-2 flex items-center justify-between">
+              <div>URL</div>
+              <input type="text" name="url" />
+            </div>
+            <div className="mx-3 mb-2 flex items-center justify-between">
+              <div>Selftext</div>
+              <input type="text" name="selftext" />
+            </div>
+            <div className="mx-3 mb-2 flex items-center justify-between">
+              <div>Author</div>
+              <input type="text" name="author" required />
+            </div>
+            <div className="mx-3 mb-2 flex items-center justify-between">
+              <div>Thumbnail</div>
+              <input type="text" name="thumbnail" />
+            </div>
+            <div className="mx-3 mb-2 flex items-center justify-between">
+              <div>NSFW</div>
+              <input type="checkbox" name="over_18" />
+            </div>
+            <input type="hidden" name="subreddit" value={params.subreddit} />
+            <div className=" mx-3 mb-2 flex items-center justify-between">
+              <div className="flex flex-grow justify-center">
+                <button
+                  className="bg-sky-500 px-2 py-1 text-white"
+                  type="submit"
+                >
+                  Submit
+                </button>
+              </div>
+              <div className="flex flex-grow justify-center">
+                <button
+                  className="bg-sky-500 px-2 py-1 text-white"
+                  onClick={() => setShowNewPostForm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </Form>
+      )}
+      <div className="mx-4 mt-2">
+        {data.map((post, index) => (
+          <div
+            className="mb-3 flex border-2 border-gray-200 bg-gray-100"
+            key={post.id}
+          >
+            <div className="w-10 flex-col bg-white pt-2">
+              <div className="text-center">{index + 1}</div>
+            </div>
+            <div className="w-20 flex-col pt-2">
+              <div className="text-center">{scoreString(post.score)}</div>
+            </div>
+            <div className="mr-2 w-20 flex-col py-1">
+              {post.thumbnail ? (
+                <img src={post.thumbnail} alt="" />
+              ) : (
+                <div className="h-16 w-16 rounded-full bg-gray-200 pt-4">
+                  <div className="text-center">...</div>
+                </div>
+              )}
+            </div>
+            <div>
+              <div>
+                <Link to={post.url || `/post/${post.id}`}>{post.title}</Link>
+              </div>
+              <div>
+                submitted {DateTime.fromISO(post.created_utc).toRelative()} by{' '}
+                {post.author}
+              </div>
+              <Link to={`/post/${post.id}`}>
+                <div>
+                  <div>{post._count.comments} comments</div>
+                </div>
+              </Link>
+            </div>
+          </div>
         ))}
       </div>
     </div>
