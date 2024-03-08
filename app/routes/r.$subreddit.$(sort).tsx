@@ -4,17 +4,25 @@ import {
   json,
   redirect,
 } from '@remix-run/node';
-import { Form, Link, useLoaderData, useParams } from '@remix-run/react';
+import {
+  Form,
+  Link,
+  useFetcher,
+  useLoaderData,
+  useParams,
+} from '@remix-run/react';
 import { prisma } from '~/db.server';
 import { Prisma } from '@prisma/client';
 import { DateTime } from 'luxon';
 import { z } from 'zod';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-export const loader = async ({ params }: LoaderFunctionArgs) => {
+export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   if (!params.subreddit) {
     return json([]);
   }
+  const url = new URL(request.url);
+  const skip = Number(url.searchParams.get('skip')) || 0;
   const orderBy: Prisma.PostFindManyArgs['orderBy'] =
     params.sort === 'new' ? { created_utc: 'desc' } : { score: 'desc' };
   const posts = await prisma.post.findMany({
@@ -29,7 +37,7 @@ export const loader = async ({ params }: LoaderFunctionArgs) => {
       },
     },
     orderBy,
-    skip: 0,
+    skip,
     take: 20,
   });
 
@@ -83,7 +91,19 @@ export default function Subreddit() {
   const params = useParams();
   const data = useLoaderData<typeof loader>();
 
+  const [postsData, setPostsData] = useState(data);
+
   const [showNewPostForm, setShowNewPostForm] = useState(false);
+
+  const fetcher = useFetcher<typeof loader>();
+
+  useEffect(() => {
+    if (fetcher.state === 'loading' || fetcher.data == null) {
+      return;
+    }
+    const newPosts = fetcher.data;
+    setPostsData((prev) => [...prev, ...newPosts]);
+  }, [fetcher.data, fetcher.state]);
 
   return (
     <div>
@@ -94,14 +114,14 @@ export default function Subreddit() {
         <div
           className={`px-2 py-1 ${params.sort == 'new' ? '' : 'bg-sky-500'}`}
         >
-          <Link to={`/r/${params.subreddit}`}>
+          <Link to={`/r/${params.subreddit}`} reloadDocument>
             <div className="text-white">Hot</div>
           </Link>
         </div>
         <div
           className={`px-2 py-1 ${params.sort == 'new' ? 'bg-sky-500' : ''}`}
         >
-          <Link to={`/r/${params.subreddit}/new`}>
+          <Link to={`/r/${params.subreddit}/new`} reloadDocument>
             <div className="text-white">New</div>
           </Link>
         </div>
@@ -163,7 +183,7 @@ export default function Subreddit() {
         </Form>
       )}
       <div className="mx-4 mt-2">
-        {data.map((post, index) => (
+        {postsData.map((post, index) => (
           <div
             className="mb-3 flex border border-gray-200 bg-gray-100"
             key={post.id}
@@ -201,7 +221,24 @@ export default function Subreddit() {
             </div>
           </div>
         ))}
+        <button
+          className="mb-3 hover:underline"
+          onClick={() => {
+            if (params.sort === 'new') {
+              fetcher.load(
+                `/r/${params.subreddit}/new?skip=${postsData.length}`,
+              );
+            } else {
+              fetcher.load(`/r/${params.subreddit}?skip=${postsData.length}`);
+            }
+          }}
+        >
+          <div>
+            <span className="text-sky-700">load more</span>
+          </div>
+        </button>
       </div>
+      <div className="h-20" />
     </div>
   );
 }

@@ -95,7 +95,6 @@ export function Comment({ comment, preloadedReplies, level }: CommentProps) {
     ) {
       return;
     }
-    console.log('repliesFetcher.data', repliesFetcher.data);
     const repliesData = repliesFetcher.data.replies.map((reply) => ({
       id: reply.id,
       body: reply.body,
@@ -243,7 +242,9 @@ export default function Post() {
     <div>
       <div className="flex bg-sky-50 pb-1 pt-5">
         <div className=" p-2 text-3xl">
-          <Link to={`/r/${post?.subreddit}`}>r/{post?.subreddit}</Link>
+          <Link to={`/r/${post?.subreddit}`} reloadDocument>
+            r/{post?.subreddit}
+          </Link>
         </div>
       </div>
       <div className="flex gap-2 bg-gray-500 p-2">
@@ -266,11 +267,13 @@ export default function Post() {
         </div>
         <div>
           <div>
-            <Link to={post.url || `/post/${post.id}`}>{post.title}</Link>
+            <Link to={post.url || `/post/${post.id}`} reloadDocument>
+              {post.title}
+            </Link>
           </div>
           {post.selftext && (
-            <div className='border border-gray-200 p-1 mr-2'>
-              <div className='text-sm'>{post.selftext}</div>
+            <div className="mr-2 border border-gray-200 p-1">
+              <div className="text-sm">{post.selftext}</div>
             </div>
           )}
           <div className="flex items-center">
@@ -289,9 +292,9 @@ export default function Post() {
             <div>
               <div className="text-sm text-gray-400">
                 submitted {DateTime.fromISO(post.created_utc).toRelative()} by{' '}
-                <span className='font-bold text-sky-900'>{post.author}</span>
+                <span className="font-bold text-sky-900">{post.author}</span>
               </div>
-              <Link to={`/post/${post.id}`}>
+              <Link to={`/post/${post.id}`} reloadDocument>
                 <div>
                   <div className="text-sm font-bold text-gray-500">
                     {post._count.comments} comments
@@ -312,14 +315,14 @@ export default function Post() {
           <div
             className={`px-2 py-1 ${!searchParams.get('sort') ? 'bg-sky-500' : 'bg-gray-500'}`}
           >
-            <Link to={`/post/${post.id}`}>
+            <Link to={`/post/${post.id}`} reloadDocument>
               <div className="text-white">Hot</div>
             </Link>
           </div>
           <div
             className={`px-2 py-1 ${searchParams.get('sort') == 'new' ? 'bg-sky-500' : 'bg-gray-500'}`}
           >
-            <Link to={`/post/${post.id}?sort=new`}>
+            <Link to={`/post/${post.id}?sort=new`} reloadDocument>
               <div className="text-white">New</div>
             </Link>
           </div>
