@@ -39,6 +39,19 @@ RUN npx prisma generate
 ADD . .
 RUN npm run build
 
+# Development image
+FROM base as dev
+
+ENV NODE_ENV development
+
+RUN mkdir /app
+WORKDIR /app
+
+COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/build /app/build
+COPY --from=build /app/public /app/public
+ADD . .
+
 # Finally, build the production image with minimal footprint
 FROM base as production
 
@@ -54,18 +67,3 @@ COPY --from=build /app/public /app/public
 ADD . .
 
 CMD ["npm", "run", "start"]
-
-# Development image
-FROM base as dev
-
-ENV NODE_ENV development
-
-RUN mkdir /app
-WORKDIR /app
-
-COPY --from=build /app/node_modules /app/node_modules
-COPY --from=build /app/build /app/build
-COPY --from=build /app/public /app/public
-ADD . .
-
-CMD ["npm", "run", "dev"]
