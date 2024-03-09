@@ -12,7 +12,7 @@ import {
   useParams,
 } from '@remix-run/react';
 import { prisma } from '~/db.server';
-import { Prisma } from '@prisma/client';
+import { Post, Prisma } from '@prisma/client';
 import { DateTime } from 'luxon';
 import { z } from 'zod';
 import { useEffect, useState } from 'react';
@@ -23,23 +23,37 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   }
   const url = new URL(request.url);
   const skip = Number(url.searchParams.get('skip')) || 0;
-  const orderBy: Prisma.PostFindManyArgs['orderBy'] =
-    params.sort === 'new' ? { created_utc: 'desc' } : { score: 'desc' };
-  const posts = await prisma.post.findMany({
-    where: {
-      subreddit: params.subreddit?.toLowerCase(),
-    },
-    include: {
-      _count: {
-        select: {
-          comments: true,
-        },
-      },
-    },
-    orderBy,
-    skip,
-    take: 20,
-  });
+
+  const orderBy =
+    params.sort === 'new'
+      ? Prisma.sql`p."created_utc" DESC`
+      : Prisma.sql`p."score" DESC`;
+
+  const posts = await prisma.$queryRaw<(Post & { numComments: number })[]>`
+    SELECT p.*, (SELECT COUNT(*)::int FROM "Comment" c WHERE c."post_id" = p.id) as "numComments"
+    FROM "Post" p
+    WHERE p."subreddit" = ${params.subreddit}
+    ORDER BY ${orderBy}
+    LIMIT 20
+    OFFSET ${skip}
+  `;
+  // const orderBy: Prisma.PostFindManyArgs['orderBy'] =
+  //   params.sort === 'new' ? { created_utc: 'desc' } : { score: 'desc' };
+  // const posts = await prisma.post.findMany({
+  //   where: {
+  //     subreddit: params.subreddit?.toLowerCase(),
+  //   },
+  //   include: {
+  //     _count: {
+  //       select: {
+  //         comments: true,
+  //       },
+  //     },
+  //   },
+  //   orderBy,
+  //   skip,
+  //   take: 20,
+  // });
 
   return json(posts);
 };
@@ -188,13 +202,13 @@ export default function Subreddit() {
             className="mb-3 flex border border-gray-200 bg-gray-100"
             key={post.id}
           >
-            <div className="w-10 flex-col bg-white pt-2">
+            <div className="w-10 flex-shrink-0 flex-col bg-white pt-2">
               <div className="text-center">{index + 1}</div>
             </div>
-            <div className="w-20 flex-col pt-2">
+            <div className="w-20 flex-shrink-0 flex-col pt-2">
               <div className="text-center">{scoreString(post.score)}</div>
             </div>
-            <div className="mr-2 w-20 flex-col py-1">
+            <div className="mr-2 w-20 flex-shrink-0 flex-col py-1">
               {post.thumbnail ? (
                 <img src={post.thumbnail} alt="" />
               ) : (
@@ -214,7 +228,7 @@ export default function Subreddit() {
               <Link className="hover:underline" to={`/post/${post.id}`}>
                 <div>
                   <div className="text-sm font-bold text-gray-500">
-                    {post._count.comments} comments
+                    {post.numComments} comments
                   </div>
                 </div>
               </Link>
