@@ -64,5 +64,8 @@ model Comment {
   @@index([post_id])
   @@index([post_id, created_utc])
   @@index([post_id, score])
-  @@index([post_id, parent_id])
+
+  @@index([parent_id])
+  @@index([parent_id, created_utc])
+  @@index([parent_id, score])
 }
