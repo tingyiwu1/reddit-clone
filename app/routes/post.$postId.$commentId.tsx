@@ -1,7 +1,7 @@
 import { ActionFunctionArgs, LoaderFunctionArgs, json } from '@remix-run/node';
 import type { ShouldRevalidateFunctionArgs } from '@remix-run/react';
 import { prisma } from '~/db.server';
-import { Prisma } from '@prisma/client';
+import { Comment, Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
@@ -13,22 +13,34 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 
   const url = new URL(request.url);
 
-  const orderBy: Prisma.CommentFindManyArgs['orderBy'] =
+  const orderBy =
     url.searchParams.get('sort') === 'new'
-      ? { created_utc: 'desc' }
-      : { score: 'desc' };
+      ? Prisma.sql`c."created_utc" DESC`
+      : Prisma.sql`c."score" DESC`;
 
-  const replies = await prisma.comment.findMany({
-    where: {
-      parent_id: params.commentId,
-    },
-    orderBy,
-    include: {
-      _count: {
-        select: { children: true },
-      },
-    },
-  });
+  const replies = await prisma.$queryRaw<(Comment & { numChildren: number })[]>`
+    SELECT c.*, (SELECT COUNT(*)::int FROM "Comment" c2 WHERE c2."parent_id" = c.id) as "numChildren"
+    FROM "Comment" c
+    WHERE c."parent_id" = ${params.commentId}
+    ORDER BY ${orderBy}
+  `;
+
+  // const orderBy: Prisma.CommentFindManyArgs['orderBy'] =
+  //   url.searchParams.get('sort') === 'new'
+  //     ? { created_utc: 'desc' }
+  //     : { score: 'desc' };
+
+  // const replies = await prisma.comment.findMany({
+  //   where: {
+  //     parent_id: params.commentId,
+  //   },
+  //   orderBy,
+  //   include: {
+  //     _count: {
+  //       select: { children: true },
+  //     },
+  //   },
+  // });
 
   return json({ comment, replies });
 };
@@ -102,22 +114,34 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const url = new URL(request.url);
 
-  const orderBy: Prisma.CommentFindManyArgs['orderBy'] =
+  const orderBy =
     url.searchParams.get('sort') === 'new'
-      ? { created_utc: 'desc' }
-      : { score: 'desc' };
+      ? Prisma.sql`c."created_utc" DESC`
+      : Prisma.sql`c."score" DESC`;
 
-  const replies = await prisma.comment.findMany({
-    where: {
-      parent_id: params.commentId,
-    },
-    orderBy,
-    include: {
-      _count: {
-        select: { children: true },
-      },
-    },
-  });
+  const replies = await prisma.$queryRaw<(Comment & { numChildren: number })[]>`
+    SELECT c.*, (SELECT COUNT(*)::int FROM "Comment" c2 WHERE c2."parent_id" = c.id) as "numChildren"
+    FROM "Comment" c
+    WHERE c."parent_id" = ${params.commentId}
+    ORDER BY ${orderBy}
+  `;
+
+  // const orderBy: Prisma.CommentFindManyArgs['orderBy'] =
+  //   url.searchParams.get('sort') === 'new'
+  //     ? { created_utc: 'desc' }
+  //     : { score: 'desc' };
+
+  // const replies = await prisma.comment.findMany({
+  //   where: {
+  //     parent_id: params.commentId,
+  //   },
+  //   orderBy,
+  //   include: {
+  //     _count: {
+  //       select: { children: true },
+  //     },
+  //   },
+  // });
 
   // put new reply at the top
   const index = replies.findIndex((r) => r.id === newComment.id);

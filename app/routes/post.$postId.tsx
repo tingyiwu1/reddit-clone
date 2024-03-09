@@ -12,54 +12,106 @@ import {
   loader as commentLoader,
   action as commentAction,
 } from './post.$postId.$commentId';
-import { Prisma } from '@prisma/client';
+import {
+  Prisma,
+  Post as PrismaPost,
+  Comment as PrismaComment,
+} from '@prisma/client';
 import { scoreString } from './r.$subreddit.$(sort)';
 import { DateTime } from 'luxon';
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
-  const post = await prisma.post.findUnique({
-    where: {
-      id: params.postId,
-    },
-    include: {
-      _count: {
-        select: {
-          comments: true,
-        },
-      },
-    },
-  });
+  const [post] = await prisma.$queryRaw<
+    (PrismaPost & { numComments: number })[]
+  >`
+    SELECT p.*, (
+      SELECT COUNT(*)::int FROM "Comment" c WHERE c."post_id" = p.id
+    ) as "numComments"
+    FROM "Post" p
+    WHERE p.id = ${params.postId}
+  `;
+  console.log(post);
+  // const post = await prisma.post.findUnique({
+  //   where: {
+  //     id: params.postId,
+  //   },
+  //   include: {
+  //     _count: {
+  //       select: {
+  //         comments: true,
+  //       },
+  //     },
+  //   },
+  // });
 
-  const orderBy: Prisma.CommentFindManyArgs['orderBy'] =
+  const prismaOrderBy: Prisma.CommentFindManyArgs['orderBy'] =
     new URL(request.url).searchParams.get('sort') === 'new'
       ? { created_utc: 'desc' }
       : { score: 'desc' };
 
   const rootComments = await prisma.comment.findMany({
     where: {
-      is_root: true,
       post_id: params.postId,
+      is_root: true,
     },
-    orderBy,
-    include: {
-      children: {
-        orderBy: {
-          score: 'desc',
-        },
-        include: {
-          _count: {
-            select: {
-              children: true,
-            },
-          },
-        },
-      },
-    },
+    orderBy: prismaOrderBy,
   });
+
+  const rawOrderBy =
+    new URL(request.url).searchParams.get('sort') === 'new'
+      ? Prisma.sql`c."created_utc" DESC`
+      : Prisma.sql`c."score" DESC`;
+
+  const replies = await prisma.$queryRaw<
+    (PrismaComment & { numChildren: number })[]
+  >`
+    SELECT c.*, (
+      SELECT COUNT(*)::int FROM "Comment" c2 WHERE c2."parent_id" = c.id
+    ) as "numChildren"
+    FROM "Comment" c
+    WHERE c."parent_id" IN (
+      ${Prisma.join(
+        rootComments.map((c) => c.id),
+        ',',
+      )}
+    )
+    ORDER BY ${rawOrderBy}
+  `;
+
+  const rootCommentsWithChildren = new Map<
+    string,
+    PrismaComment & { children: (PrismaComment & { numChildren: number })[] }
+  >(rootComments.map((c) => [c.id, { ...c, children: [] }]));
+
+  for (const reply of replies) {
+    rootCommentsWithChildren.get(reply.parent_id!)?.children.push(reply);
+  }
+
+  // const rootComments = await prisma.comment.findMany({
+  //   where: {
+  //     is_root: true,
+  //     post_id: params.postId,
+  //   },
+  //   orderBy,
+  //   include: {
+  //     children: {
+  //       orderBy: {
+  //         score: 'desc',
+  //       },
+  //       include: {
+  //         _count: {
+  //           select: {
+  //             children: true,
+  //           },
+  //         },
+  //       },
+  //     },
+  //   },
+  // });
 
   return json({
     post,
-    rootComments,
+    rootComments: Array.from(rootCommentsWithChildren.values()),
   });
 };
 
@@ -98,7 +150,7 @@ export function Comment({ comment, preloadedReplies, level }: CommentProps) {
     const repliesData = repliesFetcher.data.replies.map((reply) => ({
       id: reply.id,
       body: reply.body,
-      numReplies: reply._count.children,
+      numReplies: reply.numChildren,
       author: reply.author,
       edited: reply.edited,
       created_utc: reply.created_utc,
@@ -253,10 +305,10 @@ export default function Post() {
         </div>
       </div>
       <div className="mx-4 mb-3 flex border border-gray-200 bg-gray-100">
-        <div className="w-20 flex-col pt-2">
+        <div className="w-20 flex-shrink-0 flex-col pt-2">
           <div className="text-center">{scoreString(post.score)}</div>
         </div>
-        <div className="mr-2 w-20 flex-col py-1">
+        <div className="mr-2 w-20 flex-shrink-0 flex-col py-1">
           {post.thumbnail != 'self' ? (
             <img src={post.thumbnail} alt="" />
           ) : (
@@ -297,7 +349,7 @@ export default function Post() {
               <Link to={`/post/${post.id}`} reloadDocument>
                 <div>
                   <div className="text-sm font-bold text-gray-500">
-                    {post._count.comments} comments
+                    {post.numComments} comments
                   </div>
                 </div>
               </Link>
@@ -378,7 +430,7 @@ export default function Post() {
                 edited: reply.edited,
                 created_utc: reply.created_utc,
                 score: reply.score,
-                numReplies: reply._count.children,
+                numReplies: reply.numChildren,
               }))}
               level={0}
             />
