@@ -33,6 +33,8 @@ model Post {
   @@index([subreddit])
   @@index([subreddit, created_utc])
   @@index([subreddit, score])
+  @@index([created_utc])
+  @@index([score])
 }
 
 model Comment {
@@ -64,11 +66,9 @@ model Comment {
   @@index([post_id])
   @@index([post_id, created_utc])
   @@index([post_id, score])
-  
   @@index([post_id, is_root])
   @@index([post_id, is_root, created_utc])
   @@index([post_id, is_root, score])
-  
   @@index([parent_id])
   @@index([parent_id, created_utc])
   @@index([parent_id, score])
