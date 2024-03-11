@@ -65,21 +65,22 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       : Prisma.sql`c."score" DESC`;
 
   // select all replies to root comments, include child count for these
-  const replies = await prisma.$queryRaw<
-    (PrismaComment & { numChildren: number })[]
-  >`
-    SELECT c.*, (
-      SELECT COUNT(*)::int FROM "Comment" c2 WHERE c2."parent_id" = c.id
-    ) as "numChildren"
-    FROM "Comment" c
-    WHERE c."parent_id" IN (
-      ${Prisma.join(
-        rootComments.map((c) => c.id),
-        ',',
-      )}
-    )
-    ORDER BY ${rawOrderBy}
-  `;
+  const replies =
+    rootComments.length > 0
+      ? await prisma.$queryRaw<(PrismaComment & { numChildren: number })[]>`
+          SELECT c.*, (
+            SELECT COUNT(*)::int FROM "Comment" c2 WHERE c2."parent_id" = c.id
+          ) as "numChildren"
+          FROM "Comment" c
+          WHERE c."parent_id" IN (
+            ${Prisma.join(
+              rootComments.map((c) => c.id),
+              ',',
+            )}
+          )
+          ORDER BY ${rawOrderBy}
+        `
+      : [];
 
   // return root comments with children nested inside
   const rootCommentsWithChildren = new Map<

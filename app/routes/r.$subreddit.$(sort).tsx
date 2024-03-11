@@ -151,12 +151,14 @@ export default function Subreddit() {
             <div className="text-white">New</div>
           </Link>
         </div>
-        <button
-          className="bg-sky-500 px-2 py-1 text-white"
-          onClick={() => setShowNewPostForm(true)}
-        >
-          New Post
-        </button>
+        {params.subreddit !== 'all' && (
+          <button
+            className="bg-sky-500 px-2 py-1 text-white"
+            onClick={() => setShowNewPostForm(true)}
+          >
+            New Post
+          </button>
+        )}
       </div>
       {showNewPostForm && (
         <Form method="post">
@@ -198,7 +200,7 @@ export default function Subreddit() {
               </div>
               <div className="flex flex-grow justify-center">
                 <button
-                  className="bg-sky-500 px-2 py-1 text-white"
+                  className="bg-red-500 px-2 py-1 text-white"
                   onClick={() => setShowNewPostForm(false)}
                 >
                   Cancel
