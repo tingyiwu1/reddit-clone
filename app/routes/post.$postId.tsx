@@ -20,7 +20,9 @@ import {
 import { scoreString } from './r.$subreddit.$(sort)';
 import { DateTime } from 'luxon';
 
+// loads a post, its comments, and one level of child comments
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
+  // select post and include count of comments
   const [post] = await prisma.$queryRaw<
     (PrismaPost & { numComments: number })[]
   >`
@@ -30,7 +32,6 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     FROM "Post" p
     WHERE p.id = ${params.postId}
   `;
-  console.log(post);
   // const post = await prisma.post.findUnique({
   //   where: {
   //     id: params.postId,
@@ -49,6 +50,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       ? { created_utc: 'desc' }
       : { score: 'desc' };
 
+  // select root comments, don't need child count because children are all loaded later
   const rootComments = await prisma.comment.findMany({
     where: {
       post_id: params.postId,
@@ -62,6 +64,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       ? Prisma.sql`c."created_utc" DESC`
       : Prisma.sql`c."score" DESC`;
 
+  // select all replies to root comments, include child count for these
   const replies = await prisma.$queryRaw<
     (PrismaComment & { numChildren: number })[]
   >`
@@ -78,36 +81,17 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     ORDER BY ${rawOrderBy}
   `;
 
+  // return root comments with children nested inside
   const rootCommentsWithChildren = new Map<
     string,
-    PrismaComment & { children: (PrismaComment & { numChildren: number })[] }
+    PrismaComment & {
+      children: (PrismaComment & { numChildren: number })[];
+    }
   >(rootComments.map((c) => [c.id, { ...c, children: [] }]));
 
   for (const reply of replies) {
     rootCommentsWithChildren.get(reply.parent_id!)?.children.push(reply);
   }
-
-  // const rootComments = await prisma.comment.findMany({
-  //   where: {
-  //     is_root: true,
-  //     post_id: params.postId,
-  //   },
-  //   orderBy,
-  //   include: {
-  //     children: {
-  //       orderBy: {
-  //         score: 'desc',
-  //       },
-  //       include: {
-  //         _count: {
-  //           select: {
-  //             children: true,
-  //           },
-  //         },
-  //       },
-  //     },
-  //   },
-  // });
 
   return json({
     post,
@@ -131,12 +115,17 @@ type CommentProps = {
   level: number;
 };
 
+// recursive comment component
 export function Comment({ comment, preloadedReplies, level }: CommentProps) {
   const params = useParams();
 
+  // each comment has its own state for replies so we can load them independently
+  // initially set to preloaded replies for root comments
   const [repliesData, setRepliesData] =
     useState<CommentData[]>(preloadedReplies);
 
+  // fetcher for loading replies and submitting new ones;
+  // uses loader and action in post.$postId.$commentId.tsx
   const repliesFetcher = useFetcher<typeof commentLoader>();
 
   useEffect(() => {
@@ -272,6 +261,7 @@ export default function Post() {
 
   const [searchParams] = useSearchParams();
 
+  // fetcher for submitting new root comments
   const replyFormFetcher = useFetcher<typeof commentAction>();
 
   const formRef = useRef<HTMLFormElement>(null);

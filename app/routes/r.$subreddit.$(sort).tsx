@@ -17,6 +17,7 @@ import { DateTime } from 'luxon';
 import { z } from 'zod';
 import { useEffect, useState } from 'react';
 
+// loads 20 posts in subreddit or all, sorted by score or new, offset for pagination
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   if (!params.subreddit) {
     return json([]);
@@ -29,10 +30,18 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       ? Prisma.sql`p."created_utc" DESC`
       : Prisma.sql`p."score" DESC`;
 
+  const where =
+    params.subreddit == 'all'
+      ? Prisma.sql`TRUE`
+      : Prisma.sql`p."subreddit" = ${params.subreddit}`;
+
+  // select post and include count of comments
   const posts = await prisma.$queryRaw<(Post & { numComments: number })[]>`
-    SELECT p.*, (SELECT COUNT(*)::int FROM "Comment" c WHERE c."post_id" = p.id) as "numComments"
+    SELECT p.*, (
+      SELECT COUNT(*)::int FROM "Comment" c WHERE c."post_id" = p.id
+    ) as "numComments"
     FROM "Post" p
-    WHERE p."subreddit" = ${params.subreddit}
+    WHERE ${where}
     ORDER BY ${orderBy}
     LIMIT 20
     OFFSET ${skip}
@@ -58,6 +67,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   return json(posts);
 };
 
+// zod schema for validating new post data
 const NewPostData = z.object({
   author: z.string(),
   over_18: z.optional(z.literal('on')),
@@ -67,6 +77,7 @@ const NewPostData = z.object({
   title: z.string(),
 });
 
+// creates a new post, redirects to the new post
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   const formData = await request.formData();
 
@@ -109,6 +120,7 @@ export default function Subreddit() {
 
   const [showNewPostForm, setShowNewPostForm] = useState(false);
 
+  // fetcher for loading more posts
   const fetcher = useFetcher<typeof loader>();
 
   useEffect(() => {
@@ -224,6 +236,18 @@ export default function Subreddit() {
               <div className="text-sm text-gray-400">
                 submitted {DateTime.fromISO(post.created_utc).toRelative()} by{' '}
                 <span className="font-bold text-sky-900">{post.author}</span>
+                {params.subreddit == 'all' && (
+                  <span>
+                    {' '}
+                    to{' '}
+                    <Link
+                      className="text-sky-900 hover:underline"
+                      to={`/r/${post.subreddit}`}
+                    >
+                      r/{post.subreddit}
+                    </Link>
+                  </span>
+                )}
               </div>
               <Link className="hover:underline" to={`/post/${post.id}`}>
                 <div>
