@@ -4,6 +4,7 @@ import { prisma } from '~/db.server';
 import { Comment, Prisma } from '@prisma/client';
 import { z } from 'zod';
 
+// loads a single comment and its replies
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const comment = await prisma.comment.findUnique({
     where: {
@@ -18,6 +19,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       ? Prisma.sql`c."created_utc" DESC`
       : Prisma.sql`c."score" DESC`;
 
+  // select replies and include count of children
   const replies = await prisma.$queryRaw<(Comment & { numChildren: number })[]>`
     SELECT c.*, (SELECT COUNT(*)::int FROM "Comment" c2 WHERE c2."parent_id" = c.id) as "numChildren"
     FROM "Comment" c
@@ -51,11 +53,13 @@ export const newCommentData = z.object({
   is_root: z.optional(z.literal('on')),
 });
 
+// creates new comment, returns parent comment and replies for revalidation
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (!params.postId) {
     throw new Response('Post not found', { status: 404 });
   }
 
+  // verify post exists
   const post = await prisma.post.findUnique({
     where: {
       id: params.postId,
@@ -64,32 +68,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       id: true,
     },
   });
+  if (!post) throw new Response('Post not found', { status: 404 });
 
-  if (!post) {
-    throw new Response('Post not found', { status: 404 });
-  }
-
+  // verify form data
   const formData = await request.formData();
 
   const parsed = newCommentData.safeParse(Object.fromEntries(formData));
 
-  if (!parsed.success) {
+  if (!parsed.success)
     throw new Response(JSON.stringify(parsed.error), { status: 400 });
-  }
 
-  if (!parsed.data.is_root && !params.commentId) {
+  if (!parsed.data.is_root && !params.commentId)
     throw new Response('Need parent commentId for non root comment', {
       status: 400,
     });
-  }
-
-  const parent = parsed.data.is_root
-    ? null
-    : await prisma.comment.findUnique({
-        where: {
-          id: params.commentId,
-        },
-      });
 
   const newComment = await prisma.comment.create({
     data: {
@@ -108,9 +100,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     },
   });
 
-  if (parsed.data.is_root) {
-    return json({ comment: newComment, replies: [] });
-  }
+  // creating root comment revalidates through the post route, so don't need to fetch replies
+  if (parsed.data.is_root) return json({ comment: newComment, replies: [] });
+
+  // fetch parent comment and replies for revalidating non-root comment
+  const parent = await prisma.comment.findUnique({
+    where: {
+      id: params.commentId,
+    },
+  });
 
   const url = new URL(request.url);
 
@@ -119,6 +117,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       ? Prisma.sql`c."created_utc" DESC`
       : Prisma.sql`c."score" DESC`;
 
+  // select replies and include count of children
   const replies = await prisma.$queryRaw<(Comment & { numChildren: number })[]>`
     SELECT c.*, (SELECT COUNT(*)::int FROM "Comment" c2 WHERE c2."parent_id" = c.id) as "numChildren"
     FROM "Comment" c
@@ -143,7 +142,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   //   },
   // });
 
-  // put new reply at the top
+  // put new reply at the top when it is created so user sees it immediately
+  // (will show up in the correct order on reload)
   const index = replies.findIndex((r) => r.id === newComment.id);
   if (index === -1) {
     throw new Response('Failed to create comment', { status: 500 });
@@ -158,6 +158,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return json({ comment: parent, replies });
 };
 
+// prevent comments in other threads from revalidating
 export const shouldRevalidate = ({
   currentParams,
   formData,
@@ -168,20 +169,3 @@ export const shouldRevalidate = ({
   }
   return defaultShouldRevalidate;
 };
-
-// export default function SoloComment() {
-//   const {comment, replies} = useLoaderData<typeof loader>();
-
-//   if (!comment) return null;
-
-//  return (
-//   <div>
-//     <Comment comment={{
-//       ...comment,
-//       numReplies: replies.length,
-//     }}
-
-//     />
-//   </div>
-//  )
-// }
